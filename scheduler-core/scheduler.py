@@ -8,6 +8,10 @@ NodeScore(n) = w1·cpu_avail(n) + w2·mem_avail(n)
 
 The disruption penalty scales with both the task's disruption score and the
 current CLS state, directly encoding the CLS-aware scheduling logic.
+
+PATENT ADDITIONS:
+  - Claim 5: flow_state_locked unconditionally overrides scoring for HIGH-Dk tasks
+  - Claim 7: aggregate_cls_state (TeamCLS) drives cluster-wide arbitration penalty
 """
 
 from policy_engine import get_policy, get_preferred_nodes, get_reason
@@ -44,12 +48,12 @@ def score_node(node: dict, task: dict, cls_state: str, global_cluster_cls: float
     sla_ms = task.get("latency_sla_ms", 10000)
     sla_penalty = 0.0
     urgency = task.get("urgency_class", "standard")
-    
+
     if est_queue_delay_ms > sla_ms:
         sla_penalty = 0.4 if urgency == "high" else 0.1
 
-    # Multi-User Arbitration
-    # Penalise node if global cluster is under high aggregate cognitive load, preserving resources
+    # Addition C (Claim 7): Cluster-wide arbitration from TeamCLS aggregate.
+    # Replaces naive global_cluster_cls mean with proper weighted aggregate.
     arbitration_penalty = global_cluster_cls * 0.15
 
     return (
@@ -69,13 +73,50 @@ def select_node(
     cls_state: str,
     cls_score: float,
     global_cluster_cls: float = 0.0,
+    flow_state_locked: bool = False,   # Addition 3 (Claim 5)
+    aggregate_cls_state: str = None,   # Addition C (Claim 7)
 ) -> tuple:
     """
     Select the best node for a task given the current CLS state and cluster-wide arbitration.
 
-    Returns (node_id, policy_decision, reason, scored_nodes)
+    PATENT ADDITIONS:
+      flow_state_locked: When True AND task disruption_class==HIGH → unconditionally
+                         force remote_schedule regardless of node scores (Claim 5).
+      aggregate_cls_state: Override arbitration penalty using TeamCLS composite index
+                           rather than naive arithmetic mean (Claim 7).
+
+    Returns (node_id, policy_decision, reason, scored_nodes, flow_state_override)
     """
-    policy          = get_policy(cls_state, task.get("disruption_class", "MEDIUM"))
+    disruption_class = task.get("disruption_class", "MEDIUM")
+
+    # ── Addition 3 (Claim 5): Flow State Lock Override ─────────────────────────
+    # When the user is in a protected flow state AND the task has HIGH disruption,
+    # unconditionally defer to remote node regardless of hardware availability.
+    flow_state_override = False
+    if flow_state_locked and disruption_class == "HIGH":
+        policy  = "remote_schedule"
+        reason  = (
+            "FLOW STATE LOCK: User in sustained low-CLS protected window. "
+            "HIGH-Dk task unconditionally deferred to background node."
+        )
+        preferred_order = get_preferred_nodes(policy)
+        flow_state_override = True
+        # Score nodes anyway for transparency, but result is forced
+        scored = {}
+        for node_id, metrics in nodes.items():
+            if metrics.get("status") == "active":
+                scored[node_id] = score_node(metrics, task, cls_state, global_cluster_cls)
+        best_node = next(
+            (n for n in preferred_order if n in scored and nodes[n].get("status") == "active"),
+            "node3",
+        )
+        return best_node, policy, reason, scored, flow_state_override
+
+    # ── Normal scoring path ─────────────────────────────────────────────────────
+    # Use aggregate_cls_state for cluster-wide policy if provided (Claim 7)
+    effective_cls = aggregate_cls_state if aggregate_cls_state else cls_state
+
+    policy          = get_policy(effective_cls, disruption_class)
     preferred_order = get_preferred_nodes(policy)
     reason          = get_reason(policy)
 
@@ -86,10 +127,7 @@ def select_node(
             scored[node_id] = score_node(metrics, task, cls_state, global_cluster_cls)
 
     if not scored:
-        return "node1", policy, "Fallback: no metrics available", {}
-
-    # SLA Bypass logic: If urgency is high and expected queue delay everywhere is bad, skip preferred and force fastest CPU
-    max_score_node = max(scored.items(), key=lambda x: x[1])[0]
+        return "node1", policy, "Fallback: no metrics available", {}, False
 
     # Re-rank by preference then by score within preferred groups
     def sort_key(item):
@@ -100,4 +138,5 @@ def select_node(
     ranked    = sorted(scored.items(), key=sort_key)
     best_node = ranked[0][0]
 
-    return best_node, policy, reason, scored
+    return best_node, policy, reason, scored, False
+

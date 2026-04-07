@@ -70,3 +70,26 @@ temp/
 tmp/
 *.bak
 *~
+output/
+
+# Temporary / Generated Dirs
+tmp_sample_docx/
+.vendor_py/
+
+# Logs
+*.log
+docker-build.log
+rebuild.log
+
+# Patent Figures & Documentation
+# (Entire directory ignored as it contains 30+ generated HTML/PNG/JPG files)
+patent-figures/
+
+# Generated Documentation & Metadata
+IDF_B_CLADS.txt
+Invention_Disclosure_Format_B.docx
+benchmark_results.json
+
+# Generated Helper Scripts
+generate_figures.py
+screenshot_figures.py
