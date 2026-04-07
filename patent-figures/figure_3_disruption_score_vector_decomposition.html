@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Figure disruption_score_vector_decomposition</title>
+    <style>
+        body {
+            background-color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .mermaid {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        /* Force consistent formal line thicknesses where Mermaid misses them */
+        .mermaid .node rect, .mermaid .node circle, .mermaid .node ellipse, .mermaid .node polygon {
+            stroke-width: 2px !important;
+        }
+        .html-table-wrapper table {
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            margin: 25px 0;
+            font-size: 18px;
+            min-width: 400px;
+            box-shadow: none;
+            border: 2px solid #000;
+        }
+        .html-table-wrapper th, .html-table-wrapper td {
+            padding: 15px 20px;
+            border: 2px solid #000;
+            text-align: center;
+        }
+        .html-table-wrapper th {
+            background-color: #fff;
+            color: #000;
+            font-weight: bold;
+            border-bottom: 2px solid #000;
+        }
+        .html-table-wrapper tbody td.bold-row {
+            font-weight: bold;
+            border-right: 2px solid #000;
+        }
+        .html-table-wrapper h2 {
+            text-align: center;
+            color: #000;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="mermaid">
+flowchart TD
+    classDef default fill:#fff,stroke:#000,stroke-width:2px;
+    classDef perceptual fill:#fff,stroke:#000,stroke-width:3px;
+    classDef hardware fill:#fff,stroke:#000,stroke-width:2px,stroke-dasharray: 3 3;
+    
+    subgraph Dk ["Task Disruption Score (Dk) Calculation"]
+        direction TB
+        subgraph Human ["Human-Perceptual Penalties (Dominant)"]
+            UI["UI Blocking Impact (β1: 0.35)"]
+            NOT["Notification Output (β2: 0.25)"]
+        end
+        subgraph Hard ["Hardware Resource Penalties (Subordinate)"]
+            CPU["CPU Utilization (β3: 0.20)"]
+            MEM["Memory Footprint (β4: 0.12)"]
+            IO["Disk/Network I/O (β5: 0.08)"]
+        end
+        
+        Human --> SumH["Σ(Human weights) = 0.60"]
+        Hard --> SumR["Σ(Hardware weights) = 0.40"]
+        
+        SumH --> INV{"Invariant Checked at Boot:
+(β1 + β2) > (β3 + β4 + β5)"}
+        SumR --> INV
+        
+        INV --> DkVal["Final Task Dk Annotated"]
+    end
+    
+    class UI,NOT,Human,SumH perceptual;
+    class CPU,MEM,IO,Hard,SumR hardware;
+    </div>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ 
+          startOnLoad: true, 
+          theme: 'base',
+          themeVariables: {
+              primaryColor: '#ffffff',
+              primaryTextColor: '#000000',
+              primaryBorderColor: '#000000',
+              lineColor: '#000000',
+              secondaryColor: '#ffffff',
+              tertiaryColor: '#ffffff',
+              background: '#ffffff',
+              noteBkgColor: '#ffffff',
+              noteBorderColor: '#000000',
+              noteTextColor: '#000000',
+              actorBkg: '#ffffff',
+              actorBorder: '#000000',
+              actorTextColor: '#000000',
+              signalColor: '#000000',
+              signalTextColor: '#000000'
+          },
+          flowchart: {
+              htmlLabels: true,
+              curve: 'basis'
+          },
+          sequence: {
+              actorMargin: 50
+          }
+      });
+    </script>
+</body>
+</html>

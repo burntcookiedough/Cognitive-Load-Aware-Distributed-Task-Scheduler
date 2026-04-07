@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Figure cls_computation_pipeline</title>
+    <style>
+        body {
+            background-color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .mermaid {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        /* Force consistent formal line thicknesses where Mermaid misses them */
+        .mermaid .node rect, .mermaid .node circle, .mermaid .node ellipse, .mermaid .node polygon {
+            stroke-width: 2px !important;
+        }
+        .html-table-wrapper table {
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            margin: 25px 0;
+            font-size: 18px;
+            min-width: 400px;
+            box-shadow: none;
+            border: 2px solid #000;
+        }
+        .html-table-wrapper th, .html-table-wrapper td {
+            padding: 15px 20px;
+            border: 2px solid #000;
+            text-align: center;
+        }
+        .html-table-wrapper th {
+            background-color: #fff;
+            color: #000;
+            font-weight: bold;
+            border-bottom: 2px solid #000;
+        }
+        .html-table-wrapper tbody td.bold-row {
+            font-weight: bold;
+            border-right: 2px solid #000;
+        }
+        .html-table-wrapper h2 {
+            text-align: center;
+            color: #000;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="mermaid">
+flowchart LR
+    classDef default fill:#fff,stroke:#000,stroke-width:2px;
+    
+    A["Raw Telemetry Batch
+(User Interactions)"] --> B["Min-Max
+Normalization"]
+    B --> C["Polynomial Scoring:
+CLS = Σ (αi * Xi)"]
+    
+    C --> D["Hysteresis Controller
+(Window Gating)"]
+    D --> E["Discrete CLS State
+(LOW / MEDIUM / HIGH)"]
+    
+    C --> F["Rolling History
+Buffer (N=10)"]
+    F --> G["Numpy Polyfit
+(Linear Regression)"]
+    G --> H["Predictive Target:
+(Trend Slope, Breach Prob)"]
+    </div>
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ 
+          startOnLoad: true, 
+          theme: 'base',
+          themeVariables: {
+              primaryColor: '#ffffff',
+              primaryTextColor: '#000000',
+              primaryBorderColor: '#000000',
+              lineColor: '#000000',
+              secondaryColor: '#ffffff',
+              tertiaryColor: '#ffffff',
+              background: '#ffffff',
+              noteBkgColor: '#ffffff',
+              noteBorderColor: '#000000',
+              noteTextColor: '#000000',
+              actorBkg: '#ffffff',
+              actorBorder: '#000000',
+              actorTextColor: '#000000',
+              signalColor: '#000000',
+              signalTextColor: '#000000'
+          },
+          flowchart: {
+              htmlLabels: true,
+              curve: 'basis'
+          },
+          sequence: {
+              actorMargin: 50
+          }
+      });
+    </script>
+</body>
+</html>

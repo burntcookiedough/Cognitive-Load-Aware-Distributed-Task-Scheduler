@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "breakdown": [
+      {
+        "_id": {
+          "scheduler_mode": "BASELINE",
+          "cls_state": "LOW",
+          "disruption_class": "HIGH"
+        },
+        "avg_latency_ms": 23.05,
+        "min_latency_ms": 8.3,
+        "max_latency_ms": 119.2,
+        "sample_count": 80
+      },
+      {
+        "_id": {
+          "scheduler_mode": "BASELINE",
+          "cls_state": "MEDIUM",
+          "disruption_class": "HIGH"
+        },
+        "avg_latency_ms": 14.72,
+        "min_latency_ms": 8.05,
+        "max_latency_ms": 170.81,
+        "sample_count": 98
+      },
+      {
+        "_id": {
+          "scheduler_mode": "CLADS",
+          "cls_state": "LOW",
+          "disruption_class": "HIGH"
+        },
+        "avg_latency_ms": 18.94,
+        "min_latency_ms": 8.69,
+        "max_latency_ms": 91.02,
+        "sample_count": 80
+      },
+      {
+        "_id": {
+          "scheduler_mode": "CLADS",
+          "cls_state": "MEDIUM",
+          "disruption_class": "HIGH"
+        },
+        "avg_latency_ms": 16.76,
+        "min_latency_ms": 8.02,
+        "max_latency_ms": 147.13,
+        "sample_count": 92
+      }
+    ],
+    "headline": {
+      "clads_high_cls_high_dk_ms": null,
+      "baseline_high_cls_high_dk_ms": null,
+      "clads_improvement_pct": null,
+      "note": "Improvement % = reduction in foreground scheduling latency at HIGH CLS \u00d7 HIGH Dk under CLADS vs BASELINE. Cite in patent Section 11 as experimental evidence."
+    }
+  },
+  "migrations": {
+    "migrations": [],
+    "accuracy_summary": {
+      "total_predictions": 0,
+      "correct": 0,
+      "incorrect": 0,
+      "unknown": 0,
+      "precision": 0.0,
+      "note": "Precision = fraction of preemptive migrations where CLS actually reached HIGH within 30s"
+    }
+  }
+}
