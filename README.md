@@ -1,84 +1,155 @@
 # CLADS
 
-**Cognitive Load-Aware Distributed Task Scheduler**
+<div align="center">
 
-CLADS is a distributed scheduling prototype that combines human cognitive state with system telemetry to decide where a task should run, whether it should be delayed, and when it should be migrated. Instead of relying only on CPU, memory, and queue depth, CLADS continuously estimates a **Cognitive Load Score (CLS)** from non-physiological interaction signals such as typing variance, idle time, tab switches, context switches, and focus changes.
+## Cognitive Load-Aware Distributed Task Scheduler
 
-This repository contains a complete multi-service prototype built for final-year project demonstration, experimentation, and patent-oriented documentation.
+**A human-aware distributed scheduling prototype that routes work using both machine state and user cognitive state.**
 
----
+![Static Badge](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite%205-0f172a?style=for-the-badge)
+![Static Badge](https://img.shields.io/badge/Backend-FastAPI%20%2B%20MongoDB%20%2B%20Redis-111827?style=for-the-badge)
+![Static Badge](https://img.shields.io/badge/Mode-CLADS%20vs%20BASELINE-1d4ed8?style=for-the-badge)
+![Static Badge](https://img.shields.io/badge/Focus-Cognitive%20Load%20Scheduling-059669?style=for-the-badge)
 
-## Overview
-
-CLADS is designed around one core idea:
-
-> **Scheduling decisions should account for the user's mental load, not only machine load.**
-
-The platform captures browser interaction telemetry, converts it into a rolling CLS signal, classifies incoming tasks by human disruption cost, and routes work across a small distributed cluster of simulated worker nodes.
-
-The current implementation includes:
-
-- Real-time cognitive load estimation from browser interaction telemetry
-- Disruption-aware task annotation with perceptual-first weighting
-- CLADS scheduling and baseline scheduling for side-by-side comparison
-- Predictive migration logic based on rising CLS trends
-- Flow-state protection to keep high-disruption tasks away from focused users
-- Adaptive scheduling weight calibration
-- Team-wide aggregate CLS support for multi-user arbitration
-- A React dashboard for live monitoring, task launching, decision review, and analytics
+</div>
 
 ---
 
-## Architecture
+## Why This Project Exists
 
-```text
-React Dashboard (Vite + React)
-  |
-  |-- Browser telemetry stream --------------------------> Cognitive Load Service (:8001)
-  |                                                        |- rolling telemetry window in Redis
-  |                                                        |- CLS scoring + hysteresis
-  |                                                        |- predictive CLS
-  |                                                        |- flow-state lock
-  |                                                        |- CPU governor directive simulation
-  |
-  |-- Task request -------------------------------------> Task Annotator (:8002)
-                                                           |- disruption score
-                                                           |- task profile enrichment
-                                                           v
-                                                       Scheduler Core (:8003)
-                                                         |- CLADS policy engine
-                                                         |- baseline scheduler
-                                                         |- preemptive migration logic
-                                                         |- latency benchmarking
-                                                         |- team CLS aggregation
-                                                         v
-                           -------------------------------------------------------------
-                           |                           |                              |
-                        Node 1                       Node 2                         Node 3
-                      Local (:8011)               Balanced (:8012)             Background (:8013)
+Traditional schedulers optimize for infrastructure. CLADS optimizes for the **human + machine system**.
+
+Instead of deciding only from CPU, memory, latency, and queue depth, CLADS estimates a live **Cognitive Load Score (CLS)** from browser interaction signals and uses it as a first-class scheduling input. The result is a prototype scheduler that can:
+
+- keep disruptive work away from overloaded users
+- preserve focused work sessions with flow-state protection
+- compare human-aware scheduling against a baseline scheduler
+- collect evidence through decision logs, benchmark summaries, and analytics
+
+---
+
+## At a Glance
+
+| Capability | What CLADS Does |
+|---|---|
+| Cognitive telemetry | Computes CLS from typing variance, idle time, tab switches, context switches, and focus changes |
+| Disruption modeling | Scores task disruptiveness using perceptual-first weighting |
+| Scheduling | Chooses local, balanced, background, delayed, or remote execution paths |
+| Prediction | Estimates likely rise to `HIGH` CLS before it fully happens |
+| Protection | Applies flow-state lock for sustained focused work |
+| Analytics | Exposes live metrics, decisions, benchmark summaries, and comparison views |
+
+---
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    U["User in Browser"] --> D["React Dashboard<br/>Vite + React"]
+    D --> T["Telemetry Hook<br/>Keyboard / Idle / Focus / Tabs"]
+    T --> CLS["Cognitive Load Service<br/>:8001"]
+
+    D --> TA["Task Annotator<br/>:8002"]
+    TA --> SCH["Scheduler Core<br/>:8003"]
+    CLS --> SCH
+
+    CLS --> R["Redis<br/>Rolling Windows + Cache"]
+    CLS --> M["MongoDB<br/>Telemetry + CLS + Logs"]
+    TA --> M
+    SCH --> M
+    SCH --> R
+
+    SCH --> N1["Node 1<br/>Local :8011"]
+    SCH --> N2["Node 2<br/>Balanced :8012"]
+    SCH --> N3["Node 3<br/>Background :8013"]
 ```
 
-### Runtime services
+### Runtime Map
+
+```mermaid
+flowchart TB
+    subgraph Client
+        FE["Dashboard<br/>localhost:5173"]
+    end
+
+    subgraph Services
+        CLS["Cognitive Load Service<br/>8001"]
+        TA["Task Annotator<br/>8002"]
+        SCH["Scheduler Core<br/>8003"]
+    end
+
+    subgraph Workers
+        N1["node1<br/>8011"]
+        N2["node2<br/>8012"]
+        N3["node3<br/>8013"]
+    end
+
+    subgraph Data
+        MDB["MongoDB<br/>27017"]
+        RED["Redis<br/>6380 host / 6379 container"]
+    end
+
+    FE --> CLS
+    FE --> TA
+    FE --> SCH
+    CLS --> MDB
+    CLS --> RED
+    TA --> MDB
+    SCH --> MDB
+    SCH --> RED
+    SCH --> N1
+    SCH --> N2
+    SCH --> N3
+```
+
+### Runtime Services
 
 | Service | Port | Purpose |
 |---|---:|---|
-| `clads-mongodb` | `27017` | Persistent storage for telemetry, tasks, decisions, and logs |
-| `clads-redis` | `6380 -> 6379` | Rolling windows, CLS cache, and transient state |
-| `clads-cognitive-load` | `8001` | CLS computation, prediction, flow-state logic |
-| `clads-task-annotator` | `8002` | Disruption modeling and task enrichment |
-| `clads-scheduler` | `8003` | Scheduling, migration, node scoring, analytics |
+| `clads-mongodb` | `27017` | Persistent storage for telemetry, decisions, tasks, and logs |
+| `clads-redis` | `6380 -> 6379` | Rolling telemetry window, CLS cache, and transient state |
+| `clads-cognitive-load` | `8001` | CLS computation, hysteresis, prediction, flow-state, governor directives |
+| `clads-task-annotator` | `8002` | Task enrichment and disruption modeling |
+| `clads-scheduler` | `8003` | Policy engine, node scoring, migration, benchmarks, analytics |
 | `clads-node1` | `8011` | Local low-latency worker |
 | `clads-node2` | `8012` | Balanced worker |
-| `clads-node3` | `8013` | Background/remote worker |
-| `client-dashboard` | `5173` | Frontend dashboard during local development |
+| `clads-node3` | `8013` | Background worker |
+| `client-dashboard` | `5173` | Local dashboard during development |
 
 ---
 
-## Core Model
+## End-to-End Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Dashboard
+    participant CLS as Cognitive Load Service
+    participant Annotator as Task Annotator
+    participant Scheduler
+    participant Node as Worker Node
+    participant DB as MongoDB/Redis
+
+    User->>Dashboard: Interacts with UI
+    Dashboard->>CLS: POST /telemetry
+    CLS->>DB: Store rolling events and CLS state
+    Dashboard->>Annotator: POST /annotate
+    Annotator->>DB: Persist annotated task
+    Annotator-->>Dashboard: Enriched task
+    Dashboard->>Scheduler: POST /schedule
+    Scheduler->>CLS: Read current CLS
+    Scheduler->>DB: Read/write decisions and cache
+    Scheduler->>Node: POST /submit
+    Scheduler-->>Dashboard: Decision payload
+```
+
+---
+
+## Core Decision Model
 
 ### 1. Cognitive Load Score
 
-CLADS computes a **Cognitive Load Score (CLS)** from interaction-only telemetry.
+CLADS derives a **Cognitive Load Score (CLS)** from interaction-only telemetry:
 
 ```text
 CLS = α1·idle_time
@@ -98,22 +169,24 @@ CLS = α1·idle_time
 | `context_switch_rate` | `0.20` |
 | `focus_change_count` | `0.10` |
 
-### Hysteresis
+### CLS state stabilization
 
-To avoid noisy state oscillation, CLS transitions are stabilized with a hysteresis controller:
+```mermaid
+stateDiagram-v2
+    [*] --> LOW
+    LOW --> MEDIUM: score >= 0.45 for 2 windows
+    MEDIUM --> HIGH: score >= 0.75 for 2 windows
+    HIGH --> MEDIUM: score <= 0.65 for 3 windows
+    MEDIUM --> LOW: score <= 0.35 for 3 windows
+```
 
-- `LOW -> MEDIUM`: threshold `0.45`, requires `2` windows
-- `MEDIUM -> HIGH`: threshold `0.75`, requires `2` windows
-- `HIGH -> MEDIUM`: threshold `0.65`, requires `3` windows
-- `MEDIUM -> LOW`: threshold `0.35`, requires `3` windows
-
-This means the user state changes only after repeated evidence, not on a single spike.
+Hysteresis prevents CLS from flickering between states on short-lived spikes.
 
 ---
 
 ### 2. Disruption Score
 
-Each task is annotated with a **disruption score** representing how interruptive it is to the user.
+Each task is enriched with a disruption score:
 
 ```text
 Dk = β1·ui_blocking
@@ -133,6 +206,21 @@ Dk = β1·ui_blocking
 | `memory` | `0.12` |
 | `io` | `0.08` |
 
+### Human-first weighting
+
+```mermaid
+xychart-beta
+    title "Disruption Weight Distribution"
+    x-axis ["UI Blocking", "Notification", "CPU", "Memory", "IO"]
+    y-axis "Weight" 0 --> 0.4
+    bar [0.35, 0.25, 0.20, 0.12, 0.08]
+```
+
+Perceptual cost dominates hardware cost by design:
+
+- perceptual sum = `0.60`
+- hardware sum = `0.40`
+
 ### Disruption classes
 
 | Score Range | Class |
@@ -141,13 +229,11 @@ Dk = β1·ui_blocking
 | `0.34 - 0.66` | `MEDIUM` |
 | `0.67 - 1.00` | `HIGH` |
 
-The implementation intentionally makes the sum of perceptual weights (`ui_blocking + notification = 0.60`) greater than the sum of hardware weights (`cpu + memory + io = 0.40`), reflecting the system's human-centric design.
-
 ---
 
-### 3. Node Scoring
+### 3. Scheduler Node Score
 
-The scheduler evaluates each worker node using a weighted score:
+The scheduler evaluates candidate nodes using:
 
 ```text
 NodeScore(n) =
@@ -170,7 +256,24 @@ NodeScore(n) =
 | Disruption penalty | `0.15` |
 | Queue penalty | `0.05` |
 
-### CLS-aware routing policy
+### CLADS policy grid
+
+```mermaid
+flowchart TB
+    A["CLS LOW"] --> A1["LOW Dk -> Local"]
+    A --> A2["MEDIUM Dk -> Local"]
+    A --> A3["HIGH Dk -> Local"]
+
+    B["CLS MEDIUM"] --> B1["LOW Dk -> Local"]
+    B --> B2["MEDIUM Dk -> Balanced"]
+    B --> B3["HIGH Dk -> Background"]
+
+    C["CLS HIGH"] --> C1["LOW Dk -> Local"]
+    C --> C2["MEDIUM Dk -> Delayed"]
+    C --> C3["HIGH Dk -> Remote / Delayed"]
+```
+
+### Policy table
 
 | CLS State | Disruption LOW | Disruption MEDIUM | Disruption HIGH |
 |---|---|---|---|
@@ -180,119 +283,141 @@ NodeScore(n) =
 
 ---
 
-## Advanced Features Implemented
+## Fancy Feature Set
 
-### Predictive CLS and preemptive migration
+### Predictive CLS
 
-The cognitive load service stores recent CLS history and estimates:
+The cognitive load service maintains a rolling CLS history and exposes:
 
 - `predicted_cls`
 - `probability_high`
 - `trend_slope`
 - `estimated_breach_seconds`
 
-The scheduler can use those signals to trigger **preemptive migration** before the user's state fully reaches `HIGH`.
+This allows the scheduler to react before the user fully enters the `HIGH` state.
 
-### Flow-state protection
+### Flow-state lock
 
-When a user remains in a sustained low-load window, CLADS can mark them as being in a protected flow state. If the flow lock is active and a `HIGH` disruption task arrives, the scheduler can force it to the background node even if raw infrastructure metrics suggest otherwise.
+If a user sustains low-load interaction for long enough, CLADS can enable a protected flow window. For `HIGH` disruption tasks, that lock can override normal node scoring and force background placement.
 
-Default threshold:
+Default configuration:
 
 - `FLOW_STATE_THRESHOLD = 180`
-- With `WINDOW_UPDATE_INTERVAL = 5s`, this corresponds to roughly **15 minutes** of sustained low-load interaction
+- `WINDOW_UPDATE_INTERVAL = 5`
+- effective protected window is about **15 minutes**
+
+```mermaid
+flowchart LR
+    LOW["Sustained LOW CLS"] --> STREAK["Flow Streak Builds"]
+    STREAK --> LOCK["Flow Lock Activated"]
+    LOCK --> HDK["Incoming HIGH-Dk Task"]
+    HDK --> FORCE["Force Background / Remote Route"]
+```
 
 ### CPU governor directives
 
-The cognitive load service also computes a CPU governor directive per CLS state:
+The CLS engine can emit state-specific CPU governor directives:
 
-- `LOW`: full performance
-- `MEDIUM`: balanced foreground boost / background conservation
-- `HIGH`: foreground protection with background throttling
-
-By default, this runs in simulation mode and is logged as structured output.
+| CLS State | Foreground Policy | Background Policy |
+|---|---|---|
+| `LOW` | `performance` | `performance` |
+| `MEDIUM` | `ondemand` | `conservative` |
+| `HIGH` | `performance` | `powersave` |
 
 ### Adaptive weight calibration
 
-The scheduler contains a weight calibration module that records decisions and later updates user-specific weight profiles after enough samples accumulate.
+The scheduler records outcomes, accumulates user-specific evidence, and can calibrate decision weights over time.
 
 ### Team CLS aggregation
 
-The scheduler can aggregate multiple users' CLS states into a cluster-wide arbitration signal, enabling multi-tenant scheduling experiments rather than only single-user routing.
+The scheduler also supports cluster-wide arbitration using a weighted aggregate of multiple users' CLS states instead of a single-user perspective.
 
 ### Latency benchmarking
 
-The system records foreground scheduling latency and exposes a benchmark summary endpoint so CLADS can be compared with baseline mode using the same workload.
+The stack records foreground scheduling latency and provides a benchmark summary endpoint for `CLADS` versus `BASELINE`.
 
 ---
 
-## Task Catalog
+## Supported Task Types
 
-The dashboard and task annotator currently support the following task types:
-
-| Task Type | Category | Typical Disruption |
+| Task Type | Category | Typical Use |
 |---|---|---|
-| `build` | `HIGH` | CPU-heavy and visibly disruptive |
-| `deploy` | `HIGH` | Urgent, high interruption potential |
-| `dependency_install` | `HIGH` | IO-heavy with moderate/high interruption |
-| `test_run` | `MEDIUM` | Moderate execution and feedback cost |
-| `ai_request` | `MEDIUM` | Interactive compute-heavy request |
-| `static_analysis` | `MEDIUM` | Background-capable analysis |
-| `lint` | `LOW` | Light and short |
-| `indexing` | `LOW` | Background-friendly file indexing |
-| `autosave` | `LOW` | Minimal disruption |
+| `build` | `HIGH` | CPU-heavy project build |
+| `deploy` | `HIGH` | Deployment and restart workflows |
+| `dependency_install` | `HIGH` | Dependency resolution and package extraction |
+| `test_run` | `MEDIUM` | Test execution |
+| `ai_request` | `MEDIUM` | Interactive AI workload |
+| `static_analysis` | `MEDIUM` | Parsing and analysis workload |
+| `lint` | `LOW` | Quick lint pass |
+| `indexing` | `LOW` | Background indexing |
+| `autosave` | `LOW` | Lightweight save task |
 
-Unknown tasks are still accepted with a default medium profile.
+Unknown task types are still accepted through the annotator with a default medium profile.
 
 ---
 
-## Repository Structure
+## Repository Layout
 
-```text
-.
-|-- client-dashboard/         React frontend for live monitoring and analytics
-|-- cluster-nodes/            Generic worker node service used by node1/node2/node3
-|-- cognitive-load-service/   CLS engine, prediction, hysteresis, flow-state logic
-|-- scheduler-core/           CLADS scheduler, baseline scheduler, migration engine
-|-- shared/                   Shared configuration and schema helpers
-|-- task-annotator/           Task enrichment and disruption scoring
-|-- docker-compose.yml        Full local stack orchestration
-|-- run_tests.py              Demo workload + benchmark collection script
-|-- benchmark_results.json    Sample benchmark output artifact
+```mermaid
+mindmap
+  root((CLADS))
+    client-dashboard
+      Live Monitor
+      Task Launcher
+      Decision Log
+      Analytics
+    cognitive-load-service
+      CLS engine
+      Hysteresis
+      Predictive CLS
+      Flow state
+    task-annotator
+      Task profiles
+      Disruption model
+    scheduler-core
+      CLADS policy
+      Baseline policy
+      Migration engine
+      Team CLS
+      Benchmarks
+    cluster-nodes
+      node1
+      node2
+      node3
+    shared
+      config
+      schemas
+      utils
 ```
 
-### Frontend pages
+### Top-level directories
 
-The React dashboard exposes four main views:
-
-- `Live Monitor`
-- `Task Launcher`
-- `Decision Log`
-- `Analytics`
+| Path | Responsibility |
+|---|---|
+| `client-dashboard/` | React dashboard and telemetry-driven UI |
+| `cognitive-load-service/` | CLS engine, predictive logic, flow-state, governor directives |
+| `task-annotator/` | Disruption model and task enrichment |
+| `scheduler-core/` | CLADS scheduler, baseline scheduler, migration, benchmarks |
+| `cluster-nodes/` | Generic simulated worker service for all nodes |
+| `shared/` | Shared defaults and configuration |
 
 ---
 
-## Local Setup
+## Quick Start
 
 ### Prerequisites
 
-- Docker Desktop with Docker Compose v2
+- Docker Desktop with Compose v2
 - Node.js `20+`
-- Python `3.11+` recommended for local utility scripts
+- Python `3.11+` recommended for helper scripts
 
-### 1. Start backend services
-
-From the repository root:
+### Start the full backend stack
 
 ```bash
 docker compose up --build
 ```
 
-This will build and start MongoDB, Redis, the three backend APIs, and all three worker nodes.
-
-### 2. Start the frontend
-
-Open a second terminal:
+### Start the dashboard
 
 ```bash
 cd client-dashboard
@@ -300,7 +425,7 @@ npm install
 npm run dev
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:5173
@@ -308,19 +433,19 @@ http://localhost:5173
 
 ---
 
-## Default Local Endpoints
+## Local Endpoints
 
 ### Frontend
 
 - Dashboard: `http://localhost:5173`
 
-### Backend APIs
+### APIs
 
 - Cognitive Load Service: `http://localhost:8001`
 - Task Annotator: `http://localhost:8002`
 - Scheduler Core: `http://localhost:8003`
 
-### Worker Nodes
+### Workers
 
 - Node 1: `http://localhost:8011`
 - Node 2: `http://localhost:8012`
@@ -329,21 +454,29 @@ http://localhost:5173
 ### Datastores
 
 - MongoDB: `mongodb://localhost:27017`
-- Redis: `localhost:6380`
+- Redis host mapping: `localhost:6380`
 
-Note that inside Docker, Redis is addressed as `redis:6379`; the host-side mapping exposes it on port `6380`.
+Inside Docker, Redis remains `redis:6379`.
 
 ---
 
-## API Reference
+## API Surface
 
 ### Cognitive Load Service `:8001`
 
-### `POST /telemetry`
+| Endpoint | Purpose |
+|---|---|
+| `POST /telemetry` | Ingest telemetry and recompute CLS |
+| `GET /cls/{user_id}` | Read current CLS state and prediction payload |
+| `GET /cls-history/{user_id}` | Read recent CLS history |
+| `GET /governor/{user_id}` | Inspect user governor policy |
+| `GET /governor/log` | Inspect governor directive log |
+| `PUT /flow-config` | Update runtime flow threshold |
+| `GET /flow-state/{user_id}` | Read flow-state lock info |
+| `DELETE /cls/{user_id}/reset` | Reset user CLS and rolling state |
+| `GET /health` | Health probe |
 
-Ingest a telemetry event and recompute CLS.
-
-Example payload:
+Example telemetry payload:
 
 ```json
 {
@@ -358,55 +491,16 @@ Example payload:
 }
 ```
 
-### `GET /cls/{user_id}`
-
-Returns the current CLS state, predictive fields, feature breakdown, flow-state lock, and governor directive.
-
-### `GET /cls-history/{user_id}`
-
-Returns recent CLS history for analytics.
-
-### `GET /governor/{user_id}`
-
-Returns the current governor policy for the user.
-
-### `GET /governor/log`
-
-Returns recent governor directive log entries.
-
-### `PUT /flow-config`
-
-Updates the runtime flow-state threshold.
-
-Example payload:
-
-```json
-{
-  "threshold": 180
-}
-```
-
-### `GET /flow-state/{user_id}`
-
-Returns current flow-state status and streak data.
-
-### `DELETE /cls/{user_id}/reset`
-
-Resets telemetry and CLS-related transient state for a user.
-
-### `GET /health`
-
-Health probe for the service.
-
----
-
 ### Task Annotator `:8002`
 
-### `POST /annotate`
+| Endpoint | Purpose |
+|---|---|
+| `POST /annotate` | Enrich a task with profile and disruption metadata |
+| `GET /profiles` | Return all task profile definitions |
+| `GET /disruption-model/info` | Return disruption weights and hierarchy data |
+| `GET /health` | Health probe |
 
-Annotates a task with disruption metadata and profile information.
-
-Example payload:
+Example annotation payload:
 
 ```json
 {
@@ -416,27 +510,22 @@ Example payload:
 }
 ```
 
-### `GET /profiles`
-
-Returns task profiles, disruption scores, and vector decomposition for all known task types.
-
-### `GET /disruption-model/info`
-
-Returns the disruption weight vector and hierarchy metadata.
-
-### `GET /health`
-
-Health probe for the service.
-
----
-
 ### Scheduler Core `:8003`
 
-### `POST /schedule`
+| Endpoint | Purpose |
+|---|---|
+| `POST /schedule` | Run CLADS or BASELINE scheduling |
+| `GET /decisions` | Read recent decision records |
+| `GET /decisions/stats` | Read aggregate chart data |
+| `GET /preemptive-migrations` | Read preemptive migration history |
+| `GET /weight-profiles` | List adaptive weight profiles |
+| `GET /weight-profiles/{user_id}` | Read one user profile |
+| `GET /benchmarks/summary` | Read latency benchmark summary |
+| `GET /team-cls` | Read aggregate cluster CLS |
+| `GET /nodes/metrics` | Read live worker metrics |
+| `GET /health` | Health probe |
 
-Schedules an already annotated task.
-
-Example payload:
+Example scheduling payload:
 
 ```json
 {
@@ -453,101 +542,61 @@ Example payload:
 }
 ```
 
-### `GET /decisions`
-
-Returns recent scheduling decisions. Supports optional `user_id`.
-
-### `GET /decisions/stats`
-
-Returns aggregate decision counts and averages for dashboard charts.
-
-### `GET /preemptive-migrations`
-
-Returns preemptive migration history and prediction accuracy summary.
-
-### `GET /weight-profiles`
-
-Lists all calibrated user weight profiles.
-
-### `GET /weight-profiles/{user_id}`
-
-Returns the calibrated weight profile for a specific user.
-
-### `GET /benchmarks/summary`
-
-Returns latency benchmark breakdown used to compare CLADS against baseline.
-
-### `GET /team-cls`
-
-Returns the cluster-wide composite CLS aggregate.
-
-### `GET /nodes/metrics`
-
-Returns live worker-node metrics.
-
-### `GET /health`
-
-Health probe for the service.
-
----
-
 ### Worker Node APIs `:8011`, `:8012`, `:8013`
 
-### `POST /submit`
-
-Queue a task on a worker.
-
-### `POST /migrate`
-
-Accept a migrated task.
-
-### `GET /metrics`
-
-Return current CPU, memory, queue length, latency, and activity state.
-
-### `GET /health`
-
-Health probe for the worker.
+| Endpoint | Purpose |
+|---|---|
+| `POST /submit` | Queue a task |
+| `POST /migrate` | Accept migrated work |
+| `GET /metrics` | Return live worker metrics |
+| `GET /health` | Health probe |
 
 ---
 
-## How the Demo Works
+## Demo Storyboard
 
-### Recommended demo flow
-
-1. Start the full stack with Docker Compose.
-2. Start the React dashboard.
-3. Open `Live Monitor` and watch node metrics update.
-4. Interact normally with the page to generate low-load telemetry.
-5. Launch a `build` or `test_run` task in `CLADS` mode.
-6. Increase context switching and pauses to drive CLS upward.
-7. Launch a `deploy` or `build` task again and compare the assigned node.
-8. Switch to `BASELINE` mode and submit the same task type.
-9. Open `Decision Log` and `Analytics` to compare routing behavior.
+```mermaid
+journey
+    title CLADS Demo Flow
+    section Normal workload
+      Open dashboard: 5: User
+      Generate calm telemetry: 4: User
+      Launch build in CLADS mode: 4: User
+      Observe local scheduling: 4: User
+    section Rising overload
+      Increase tab switching and pauses: 3: User
+      Raise CLS toward MEDIUM/HIGH: 3: System
+      Launch high-disruption task: 5: User
+      Observe background or remote routing: 5: System
+    section Comparison
+      Switch to BASELINE mode: 4: User
+      Resubmit same task: 4: User
+      Compare decisions and analytics: 5: User
+```
 
 ### Expected behavior
 
-- Under `LOW` CLS, disruptive tasks can still stay local.
-- Under `MEDIUM` CLS, disruptive tasks drift toward balanced or background nodes.
-- Under `HIGH` CLS, CLADS should favor remote/background handling or delay logic.
-- In `BASELINE` mode, task placement ignores cognitive load and is driven only by node metrics.
+- `LOW` CLS keeps most work local.
+- `MEDIUM` CLS shifts disruptive work toward balanced or background nodes.
+- `HIGH` CLS pushes disruptive work away from the user through delayed or remote placement.
+- `BASELINE` ignores cognitive load and uses infrastructure-only scoring.
 
 ---
 
-## Benchmarking and Verification
+## Benchmarking
 
-The repository includes a simple asynchronous workload generator:
+The repository includes:
 
-- Script: `run_tests.py`
-- Output artifact: `benchmark_results.json`
+- `run_tests.py` for synthetic load generation
+- `benchmark_results.json` as a sample output artifact
 
-The script:
+The helper script:
 
-- Sends telemetry to push users through rising CLS conditions
-- Schedules the same workload in both `CLADS` and `BASELINE` modes
-- Waits for asynchronous accuracy checks
-- Pulls benchmark summaries and preemptive migration records
-- Saves the result to `benchmark_results.json`
+1. sends telemetry that pushes users from lower to higher CLS bands
+2. schedules comparable workloads in `CLADS` and `BASELINE`
+3. waits for asynchronous evaluation work
+4. fetches benchmark and migration summaries
+5. writes results to `benchmark_results.json`
 
 Run it after the stack is up:
 
@@ -555,13 +604,13 @@ Run it after the stack is up:
 python run_tests.py
 ```
 
-Current sample benchmark data in the repository contains latency breakdown entries, but the headline `HIGH CLS x HIGH Dk` comparison fields are still `null`, so benchmark evidence is present but not yet complete for that scenario.
+Current checked-in benchmark output includes latency breakdowns, but the headline `HIGH CLS x HIGH Dk` summary is still incomplete in the sample artifact.
 
 ---
 
-## Development Notes
+## Technology Stack
 
-### Frontend stack
+### Frontend
 
 - React `18`
 - Vite `5`
@@ -569,20 +618,16 @@ Current sample benchmark data in the repository contains latency breakdown entri
 - Chart.js `4`
 - Axios
 
-### Backend stack
+### Backend
 
 - FastAPI
 - Pydantic v2
 - MongoDB with Motor
 - Redis asyncio client
 - HTTPX
-- NumPy in the cognitive load service
+- NumPy in the CLS service
 
-### Environment notes
-
-The services are configured primarily through environment variables exposed in `docker-compose.yml` and shared defaults in `shared/config.py`.
-
-Important runtime knobs include:
+### Important runtime knobs
 
 - `REDIS_URL`
 - `MONGODB_URI`
@@ -594,45 +639,41 @@ Important runtime knobs include:
 
 ---
 
-## Research and Patent-Oriented Claims Reflected in Code
+## Patent-Oriented Concepts Reflected in Code
 
-The codebase explicitly implements the following claim-oriented ideas:
-
-1. Interaction-only cognitive load estimation without EEG, camera, or wearables
-2. CLS-aware CPU governor directive generation
-3. Hysteresis-stabilized cognitive-state transitions
-4. Predictive migration before a user fully enters `HIGH` CLS
-5. Flow-state protection that overrides normal scoring for highly disruptive tasks
-6. Adaptive user-specific weight calibration
-7. Team-level aggregate CLS for multi-user scheduling arbitration
-
-These concepts are visible in the service modules and reflected in the API surface, logs, and benchmark helpers.
+| Claim Theme | Implementation Present |
+|---|---|
+| Interaction-only cognitive estimation | Yes |
+| CLS-aware CPU governor directives | Yes |
+| Hysteresis-stabilized state transitions | Yes |
+| Predictive migration | Yes |
+| Flow-state override | Yes |
+| Adaptive per-user weight calibration | Yes |
+| Team-level aggregate CLS arbitration | Yes |
 
 ---
 
-## Known Constraints
+## Current Constraints
 
-- The worker nodes simulate execution rather than running real workloads.
-- CPU and memory readings on worker nodes are synthetic but consistent enough for scheduling experiments.
+- Worker nodes simulate execution rather than running real production tasks.
+- Worker CPU and memory metrics are synthetic but consistent for experiments.
 - The dashboard currently uses a single demo user: `u_shagun`.
-- Some benchmark headline fields are not yet populated in the checked-in sample output.
-- The existing implementation is optimized for demonstration and experimentation rather than production hardening.
+- The checked-in benchmark artifact is useful, but not complete for every headline metric.
+- The system is a research/demo prototype rather than a production-hardened platform.
 
 ---
 
-## Suggested Next Steps
+## Next Improvements
 
-If you want to extend this prototype, the most useful follow-up work would be:
-
-- Add a formal end-to-end test suite per service
-- Persist richer CLS history instead of overwriting current state documents
-- Expand multi-user dashboard support beyond the single demo user
-- Add authentication and scoped data access
-- Replace simulated worker execution with real task adapters
-- Export benchmark and patent-evidence reports automatically
+- add formal end-to-end tests for all services
+- persist richer CLS history instead of mostly current-state views
+- support multiple users in the dashboard
+- add auth and data isolation
+- replace simulated workers with real task adapters
+- generate benchmark and evidence reports automatically
 
 ---
 
-## License and Usage
+## License
 
-This repository appears to be a project and research prototype. If you plan to publish or distribute it, add an explicit license file and any required academic or IP attribution statements.
+This repository does not currently expose an explicit license file. If you intend to publish, distribute, or open-source it, add a license and any academic or IP attribution required for your use case.
