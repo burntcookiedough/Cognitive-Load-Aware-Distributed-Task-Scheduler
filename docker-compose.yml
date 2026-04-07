@@ -1,0 +1,144 @@
+services:
+  # ── Data stores ──────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: clads-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - clads-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: clads-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - clads-net
+
+  # ── Cognitive Load Service ───────────────────────────────────────────────────
+  cognitive-load-service:
+    build:
+      context: .
+      dockerfile: cognitive-load-service/Dockerfile
+    container_name: clads-cognitive-load
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://mongodb:27017
+    depends_on:
+      - redis
+      - mongodb
+    networks:
+      - clads-net
+
+  # ── Task Annotator ───────────────────────────────────────────────────────────
+  task-annotator:
+    build:
+      context: .
+      dockerfile: task-annotator/Dockerfile
+    container_name: clads-task-annotator
+    ports:
+      - "8002:8002"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    networks:
+      - clads-net
+
+  # ── Scheduler Core ───────────────────────────────────────────────────────────
+  scheduler-core:
+    build:
+      context: .
+      dockerfile: scheduler-core/Dockerfile
+    container_name: clads-scheduler
+    ports:
+      - "8003:8003"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URI=mongodb://mongodb:27017
+      - COGNITIVE_LOAD_URL=http://cognitive-load-service:8001
+      - NODE1_URL=http://node1:8011
+      - NODE2_URL=http://node2:8012
+      - NODE3_URL=http://node3:8013
+    depends_on:
+      - redis
+      - mongodb
+      - cognitive-load-service
+      - node1
+      - node2
+      - node3
+    networks:
+      - clads-net
+
+  # ── Worker Nodes ─────────────────────────────────────────────────────────────
+  node1:
+    build:
+      context: .
+      dockerfile: cluster-nodes/Dockerfile
+    container_name: clads-node1
+    ports:
+      - "8011:8011"
+    environment:
+      - NODE_ID=node1
+      - NODE_LABEL=Local
+      - NODE_PORT=8011
+      - BASE_LATENCY_MS=20
+      - QUEUE_CAPACITY=3
+      - CPU_LIMIT=0.80
+      - MONGODB_URI=mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    networks:
+      - clads-net
+
+  node2:
+    build:
+      context: .
+      dockerfile: cluster-nodes/Dockerfile
+    container_name: clads-node2
+    ports:
+      - "8012:8012"
+    environment:
+      - NODE_ID=node2
+      - NODE_LABEL=Balanced
+      - NODE_PORT=8012
+      - BASE_LATENCY_MS=85
+      - QUEUE_CAPACITY=6
+      - CPU_LIMIT=0.60
+      - MONGODB_URI=mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    networks:
+      - clads-net
+
+  node3:
+    build:
+      context: .
+      dockerfile: cluster-nodes/Dockerfile
+    container_name: clads-node3
+    ports:
+      - "8013:8013"
+    environment:
+      - NODE_ID=node3
+      - NODE_LABEL=Background
+      - NODE_PORT=8013
+      - BASE_LATENCY_MS=120
+      - QUEUE_CAPACITY=10
+      - CPU_LIMIT=0.90
+      - MONGODB_URI=mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    networks:
+      - clads-net
+
+volumes:
+  mongo_data:
+
+networks:
+  clads-net:
+    driver: bridge
